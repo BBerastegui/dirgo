@@ -18,7 +18,7 @@ func random(min, max int) int {
 }
 
 // Channel of simultaneous tasks
-var simul = make(chan string, 10)
+var simul = make(chan string, 100)
 var task_queue = make(chan string)
 
 // Array of strings with finished tasks
@@ -36,15 +36,19 @@ var lastword string
 
 var wg sync.WaitGroup
 
+var task_recursive string
+var recursive bool
+
 func main() {
-	go feed(task_queue)
+	recursive = false
+	go feed(task_queue, "")
 	consume(task_queue, simul)
 	wg.Wait()
 	fmt.Println(len(finished_tasks), " finished tasks.")
 }
 
 // This function will feed the task channel
-func feed(task_queue chan string) {
+func feed(task_queue chan string, prefix string) {
 
 	// First open file and for each line...
 	file, err := os.Open(os.Args[2])
@@ -55,7 +59,7 @@ func feed(task_queue chan string) {
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		task_queue <- scanner.Text()
+		task_queue <- prefix + scanner.Text()
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -63,8 +67,13 @@ func feed(task_queue chan string) {
 	}
 
 	// Re-fill tasks
-	defer close(task_queue)
-	fmt.Println("FEED FINISHED")
+	if len(task_recursive) > 0 {
+		recursive = true
+	} else {
+		close(task_queue)
+		fmt.Println("FEED FINISHED")
+	}
+
 }
 
 func consume(task_queue chan string, simul chan string) {
