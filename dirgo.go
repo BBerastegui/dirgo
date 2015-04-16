@@ -114,6 +114,7 @@ func scan(path string, simul chan string) {
 					fmt.Println("\rFound: " + path)
 				}
 			case response.StatusCode >= 300 && response.StatusCode <= 399:
+				// TODO
 				// If "xxx" is 301'ed, and then followed location is 404 == 404
 				// If "xxx" is 301'ed, and then followed location is 200 == 200
 				fmt.Printf("\r                                ")
