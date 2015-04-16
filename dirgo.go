@@ -109,10 +109,13 @@ func scan(path string, simul chan string) {
 			case response.StatusCode == 200:
 				if listable(content) {
 					fmt.Println("Path: " + path + " is listable.")
+				} else {
+					fmt.Printf("\r                                ")
+					fmt.Println("\rFound: " + path)
 				}
-				fmt.Printf("\r                                ")
-				fmt.Println("\rFound: " + path)
 			case response.StatusCode >= 300 && response.StatusCode <= 399:
+				// If "xxx" is 301'ed, and then followed location is 404 == 404
+				// If "xxx" is 301'ed, and then followed location is 200 == 200
 				fmt.Printf("\r                                ")
 				fmt.Println("\r30X on " + path)
 			case response.StatusCode == 403:
