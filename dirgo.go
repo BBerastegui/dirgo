@@ -2,11 +2,10 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"math/rand"
-	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -39,7 +38,22 @@ var wg sync.WaitGroup
 var task_recursive string
 var recursive bool
 
+var url string
+var dict string
+
 func main() {
+
+	// FLAGS
+
+	urlFlag := flag.String("u", "foo", "the url to test")
+	dictFlag := flag.String("d", "foo", "the dictionary to use")
+	flag.Parse()
+
+	url = *urlFlag
+	dict = *dictFlag
+	// /FLAGS
+
+	// ---
 	recursive = false
 	go feed(task_queue, "")
 	consume(task_queue, simul)
@@ -49,9 +63,8 @@ func main() {
 
 // This function will feed the task channel
 func feed(task_queue chan string, prefix string) {
-
 	// First open file and for each line...
-	file, err := os.Open(os.Args[2])
+	file, err := os.Open(dict)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -73,59 +86,41 @@ func feed(task_queue chan string, prefix string) {
 		close(task_queue)
 		fmt.Println("FEED FINISHED")
 	}
-
 }
 
 func consume(task_queue chan string, simul chan string) {
 	for path := range task_queue {
 		simul <- path
-		go scan(path, simul)
+		go scan(url, path, simul)
 	}
 	fmt.Println("DONE")
 }
 
-func scan(path string, simul chan string) {
+func scan(url string, path string, simul chan string) {
 	wg.Add(1)
 	// Foo demo func.
-	// Perform HTTP request
-	response, err := http.Get(os.Args[1] + path)
+	response, content, err := httpRequest(url, path, true)
 	if err != nil {
-		// Something happened.
 		log.Fatal("[Request error] %s", err)
-		os.Exit(1)
-	} else {
-		defer response.Body.Close()
-		content, err := ioutil.ReadAll(response.Body)
-		if err != nil {
-			log.Fatal("ERROR While reading content: %s", err)
-		}
-		// Handle HTTP status
-		switch {
-		case response.StatusCode == 404:
-			fmt.Printf("\r                                ")
-			fmt.Printf("\r %s", path)
-		default:
-			switch {
-			case response.StatusCode == 200:
-				if listable(content) {
-					fmt.Println("Path: " + path + " is listable.")
-				} else {
-					fmt.Printf("\r                                ")
-					fmt.Println("\rFound: " + path)
-				}
-			case response.StatusCode >= 300 && response.StatusCode <= 399:
-				// TODO
-				// If "xxx" is 301'ed, and then followed location is 404 == 404
-				// If "xxx" is 301'ed, and then followed location is 200 == 200
-				fmt.Printf("\r                                ")
-				fmt.Println("\r30X on " + path)
-			case response.StatusCode == 403:
-				fmt.Printf("\r                                ")
-				fmt.Println("\r403 on " + path)
-			}
-		}
 	}
-	//fmt.Println("Task ", path, " finished.")
+	switch {
+	case response.StatusCode == 404:
+		fmt.Printf("\r                                ")
+		fmt.Printf("\r %s", path)
+	case response.StatusCode == 200:
+		if listable(content) {
+			fmt.Println("Path: " + path + " is listable.")
+		} else {
+			fmt.Printf("\r                                ")
+			fmt.Println("\rFound: " + path)
+		}
+	case response.StatusCode >= 300 && response.StatusCode <= 399:
+		fmt.Printf("\r                                ")
+		fmt.Println("\rresponse.Statuscode == 30X on " + path)
+	case response.StatusCode == 403:
+		fmt.Printf("\r                                ")
+		fmt.Println("\r403 on " + path)
+	}
 	finished_tasks = append(finished_tasks, <-simul)
-	wg.Done()
+	defer wg.Done()
 }
