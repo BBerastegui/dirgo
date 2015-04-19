@@ -2,15 +2,13 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"regexp"
 )
 
-func listable(content []byte) bool {
-	rListable := regexp.MustCompile(".*Parent Directory.*|.*Directory listing.*|.*Up To .*|.*Al directorio pri.*")
+func isListable(content []byte) bool {
+	rListable := regexp.MustCompile(".*Parent Directory.*|.*Directory listing.*|.*Up To .*|.*Al directorio pri.*|.*<h1>Index of .*")
 	if len(rListable.FindString(string(content))) > 0 {
 		return true
 	} else {
@@ -18,36 +16,53 @@ func listable(content []byte) bool {
 	}
 }
 
-func noRedirect(req *http.Request, via []*http.Request) error {
-	return errors.New("Don't redirect!")
+func isDirectory(response *http.Response, path string) bool {
+	rDir := regexp.MustCompile(".*" + path + "/")
+	if len(rDir.FindString(string(response.Header["Location"][0]))) > 0 {
+		return true
+	} else {
+		return false
+	}
 }
 
 func httpRequest(url string, path string, followRedirect bool) (response *http.Response, content []byte, err error) {
-
 	client := &http.Client{}
 	// If its requested not to follow redirects
-	if followRedirect {
+	if !followRedirect {
 		client = &http.Client{
-			CheckRedirect: noRedirect,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return errors.New("Don't redirect!")
+			},
 		}
 	} else {
 		client = &http.Client{}
 	}
 	// ---
 	// Perform HTTP request
-	//response, err = http.Get(url + path)
 	req, err := http.NewRequest("GET", url+path, nil)
 	response, err = client.Do(req)
 
 	// TODO
-	if err != nil {
+	/*if err != nil {
 		if response.StatusCode == 301 {
-			fmt.Println("got redirect")
+			fmt.Println("\n[i] Got 301 on " + path)
+			content = []byte("")
+			return response, content, err
 		} else {
-			log.Fatal("HTTP request failed.")
+			// Not a 301, re-perform request with follow redirects.
+			//log.Printf("HTTP request failed.")
+			client = &http.Client{}
+			req, err := http.NewRequest("GET", url+path, nil)
+			if err != nil {
+				fmt.Println("\n Error performing request:")
+			}
+			response, err = client.Do(req)
+			if err != nil {
+				fmt.Println("\n Error doing request:")
+			}
 		}
 	}
-
+	*/
 	defer response.Body.Close()
 	content, err = ioutil.ReadAll(response.Body)
 	if err != nil {

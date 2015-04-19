@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -17,7 +18,7 @@ func random(min, max int) int {
 }
 
 // Channel of simultaneous tasks
-var simul = make(chan string, 100)
+var simul = make(chan string, 10)
 var task_queue = make(chan string)
 
 // Array of strings with finished tasks
@@ -30,13 +31,12 @@ var found_files []string
 // Array with pending directories
 var pending_dir []string
 
+// TODO
+// Persistence variables
 // Last word used
 var lastword string
 
 var wg sync.WaitGroup
-
-var task_recursive string
-var recursive bool
 
 var url string
 var dict string
@@ -44,7 +44,6 @@ var dict string
 func main() {
 
 	// FLAGS
-
 	urlFlag := flag.String("u", "foo", "the url to test")
 	dictFlag := flag.String("d", "foo", "the dictionary to use")
 	flag.Parse()
@@ -54,7 +53,6 @@ func main() {
 	// /FLAGS
 
 	// ---
-	recursive = false
 	go feed(task_queue, "")
 	consume(task_queue, simul)
 	wg.Wait()
@@ -79,13 +77,13 @@ func feed(task_queue chan string, prefix string) {
 		log.Fatal(err)
 	}
 
-	// Re-fill tasks
-	if len(task_recursive) > 0 {
-		recursive = true
-	} else {
+	// If it has no prefix (first time called)
+	if len(prefix) == 0 {
+		fmt.Println("\n\r [i] Waiting for tasks to end and close the task_queue.")
+		wg.Wait()
 		close(task_queue)
-		fmt.Println("FEED FINISHED")
 	}
+	fmt.Println("\n\r [i] Task feed finished for prefix: " + prefix)
 }
 
 func consume(task_queue chan string, simul chan string) {
@@ -93,34 +91,53 @@ func consume(task_queue chan string, simul chan string) {
 		simul <- path
 		go scan(url, path, simul)
 	}
-	fmt.Println("DONE")
+	// All tasks consumed
 }
 
 func scan(url string, path string, simul chan string) {
 	wg.Add(1)
-	// Foo demo func.
-	response, content, err := httpRequest(url, path, true)
-	if err != nil {
-		log.Fatal("[Request error] %s", err)
-	}
+	response, content, _ := httpRequest(url, path, false)
+	/*	if err != nil {
+			log.Print("[Request error] %s", err)
+		}
+	*/
 	switch {
 	case response.StatusCode == 404:
 		fmt.Printf("\r                                ")
 		fmt.Printf("\r %s", path)
 	case response.StatusCode == 200:
-		if listable(content) {
-			fmt.Println("Path: " + path + " is listable.")
+		if isListable(content) {
+			fmt.Println("\r[!] Path: " + path + " is listable.")
 		} else {
 			fmt.Printf("\r                                ")
-			fmt.Println("\rFound: " + path)
+			fmt.Println("\r[!] 200 on: " + path + " - Size: " + strconv.Itoa(len(content)))
 		}
 	case response.StatusCode >= 300 && response.StatusCode <= 399:
+		// TODO
+		// Fix print race-condition problems
 		fmt.Printf("\r                                ")
-		fmt.Println("\rresponse.Statuscode == 30X on " + path)
+		fmt.Println("\r[!] Response.Statuscode == " + strconv.Itoa(response.StatusCode) + " on " + path + " - Size: " + strconv.Itoa(len(content)))
+		if isDirectory(response, path) {
+			fmt.Println("    [i] " + path + " is a directory.")
+			// Call to httpRequest with following redirects
+			response, content, _ := httpRequest(url, path, true)
+			if isListable(content) {
+				fmt.Println("\r    └[i] Directory: " + path + " is listable. It won't be added to queue.")
+			} else {
+				fmt.Println("\r    └[i] Directory: " + path + " ended with a " + strconv.Itoa(response.StatusCode) + " It will be added to queue.")
+				feed(task_queue, path+"/")
+			}
+		} else {
+			fmt.Println("    [i] " + path + " is NOT a directory.")
+		}
 	case response.StatusCode == 403:
 		fmt.Printf("\r                                ")
-		fmt.Println("\r403 on " + path)
+		fmt.Println("\r[!] 403 on " + path + " - Size: " + strconv.Itoa(len(content)))
+	case response.StatusCode == 405:
+		fmt.Printf("\r                                ")
+		fmt.Println("\r[!] 405 on " + path + " - Size: " + strconv.Itoa(len(content)))
 	}
+
 	finished_tasks = append(finished_tasks, <-simul)
 	defer wg.Done()
 }
