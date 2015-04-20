@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"errors"
 	"io/ioutil"
 	"net/http"
@@ -48,20 +49,30 @@ func formatUrl(urlToParse string) (formattedUrl string) {
 }
 
 func httpRequest(targetUrl string, path string, followRedirect bool) (response *http.Response, content []byte, err error) {
-	client := &http.Client{}
+
+	// DISABLING SSL CHECKS
+
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
+
+	//	client := &http.Client{}
 	// If its requested not to follow redirects
 	if !followRedirect {
 		client = &http.Client{
+			Transport: tr,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return errors.New("NotDon't redirect!")
 			},
 		}
 	} else {
-		client = &http.Client{}
+		client = &http.Client{Transport: tr}
 	}
 	// ---
 
 	// Perform HTTP request
+
 	req, err := http.NewRequest("GET", targetUrl+path, nil)
 	response, err = client.Do(req)
 
