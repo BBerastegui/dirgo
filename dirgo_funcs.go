@@ -8,7 +8,7 @@ import (
 )
 
 func isListable(content []byte) bool {
-	rListable := regexp.MustCompile(".*Parent Directory.*|.*Directory listing.*|.*Up To .*|.*Al directorio pri.*|.*<h1>Index of .*")
+	rListable := regexp.MustCompile(".*Parent Directory.*|.*Directory listing.*|.*Up To .*|.*Al directorio pri.*|.*<title>Index of .*")
 	if len(rListable.FindString(string(content))) > 0 {
 		return true
 	} else {
@@ -19,6 +19,9 @@ func isListable(content []byte) bool {
 func isDirectory(response *http.Response, path string) bool {
 	rDir := regexp.MustCompile(".*" + path + "/")
 	if len(rDir.FindString(string(response.Header["Location"][0]))) > 0 {
+		// TODO
+		// Fix location URL-encoded !!!
+		// Example: http://testaspnet.vulnweb.com/jscripts/tiny_mce
 		return true
 	} else {
 		return false

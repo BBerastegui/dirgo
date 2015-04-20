@@ -42,7 +42,8 @@ var url string
 var dict string
 
 func main() {
-
+	// TODO
+	// Fix flexible URL input. Ex.: http://XXX.com OR XXX.com
 	// FLAGS
 	urlFlag := flag.String("u", "foo", "the url to test")
 	dictFlag := flag.String("d", "foo", "the dictionary to use")
@@ -79,11 +80,11 @@ func feed(task_queue chan string, prefix string) {
 
 	// If it has no prefix (first time called)
 	if len(prefix) == 0 {
-		fmt.Println("\n\r [i] Waiting for tasks to end and close the task_queue.")
+		fmt.Println("\r--- [i] Waiting for tasks to end and close the task_queue.")
 		wg.Wait()
 		close(task_queue)
 	}
-	fmt.Println("\n\r [i] Task feed finished for prefix: " + prefix)
+	fmt.Println("\r--- [i] Task feed finished for prefix: " + prefix)
 }
 
 func consume(task_queue chan string, simul chan string) {
