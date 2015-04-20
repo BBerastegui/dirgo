@@ -55,7 +55,7 @@ func main() {
 	wg.Wait()
 
 	// Finished.
-	fmt.Println("\n[FINISHED]\n\n"+len(finished_tasks), " finished tasks.")
+	fmt.Printf("\n[FINISHED]\n\n" + strconv.Itoa(len(finished_tasks)) + " finished tasks.")
 	fmt.Println("\n[i] Directories found: ")
 	fmt.Println(found_dir)
 	fmt.Println("[i] Files found: ")
