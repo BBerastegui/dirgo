@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -40,8 +41,11 @@ func main() {
 	urlFlag := flag.String("u", "foo", "the url to test")
 	dictFlag := flag.String("d", "foo", "the dictionary to use")
 	flag.Parse()
-
-	targetUrl = formatUrl(*urlFlag)
+	var err error
+	targetUrl, err = formatUrl(*urlFlag)
+	if err != nil {
+		log.Println("[E] Error" + err.Error())
+	}
 	dict = *dictFlag
 	// /FLAGS
 
@@ -99,11 +103,12 @@ func consume(task_queue chan string, simul chan string) {
 
 func scan(targetUrl string, path string, simul chan string) {
 	wg.Add(1)
-	response, content, _ := httpRequest(targetUrl, path, false)
-	/*	if err != nil {
-			log.Print("[Request error] %s", err)
-		}
-	*/
+	response, content, err := httpRequest(targetUrl, path, false)
+	var errRedirect = errors.New("no_redirect")
+	if err != nil && err != errRedirect {
+		log.Println("[Request error] %s", err)
+		os.Exit(1)
+	}
 	switch {
 	case response.StatusCode == 404:
 		fmt.Printf("\r                                ")

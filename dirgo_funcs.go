@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strings"
 )
 
 func isListable(content []byte) bool {
@@ -30,22 +31,15 @@ func isDirectory(response *http.Response, path string) bool {
 	}
 }
 
-func formatUrl(urlToParse string) (formattedUrl string) {
+func formatUrl(urlToParse string) (string, error) {
 	u, err := url.Parse(urlToParse)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
-	if len(u.Scheme) == 0 {
+	if u.Scheme == "" {
 		u.Scheme = "http"
-		return u.String() + "/"
-	} else {
-		if len(u.Path) == 0 {
-			u.Path = "/"
-			return u.String()
-		} else {
-			return u.String()
-		}
 	}
+	return strings.TrimRight(u.String(), "/") + "/", nil
 }
 
 func httpRequest(targetUrl string, path string, followRedirect bool) (response *http.Response, content []byte, err error) {
@@ -63,7 +57,8 @@ func httpRequest(targetUrl string, path string, followRedirect bool) (response *
 		client = &http.Client{
 			Transport: tr,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return errors.New("NotDon't redirect!")
+				//var err error
+				return errors.New("no_redirect")
 			},
 		}
 	} else {
@@ -75,7 +70,9 @@ func httpRequest(targetUrl string, path string, followRedirect bool) (response *
 
 	req, err := http.NewRequest("GET", targetUrl+path, nil)
 	response, err = client.Do(req)
-
+	if err != nil {
+		return response, content, err
+	}
 	defer response.Body.Close()
 	content, err = ioutil.ReadAll(response.Body)
 	if err != nil {
@@ -85,20 +82,4 @@ func httpRequest(targetUrl string, path string, followRedirect bool) (response *
 	}
 	// Return. Everything went OK
 	return response, content, err
-
-	/*
-		if err != nil {
-			// Return. Error when performing request.
-			return response, content, err
-		} else {
-			defer response.Body.Close()
-			content, err = ioutil.ReadAll(response.Body)
-			if err != nil {
-				// Return. Error on reading content.
-				return response, content, err
-			}
-			// Return. Everything went OK
-			return response, content, err
-		}
-	*/
 }
