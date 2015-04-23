@@ -42,6 +42,8 @@ func formatUrl(urlToParse string) (string, error) {
 	return strings.TrimRight(u.String(), "/") + "/", nil
 }
 
+var errNoRedirect = errors.New("no_redirect")
+
 func httpRequest(targetUrl string, path string, followRedirect bool) (response *http.Response, content []byte, err error) {
 
 	// DISABLING SSL CHECKS
@@ -58,7 +60,7 @@ func httpRequest(targetUrl string, path string, followRedirect bool) (response *
 			Transport: tr,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				//var err error
-				return errors.New("no_redirect")
+				return errNoRedirect
 			},
 		}
 	} else {

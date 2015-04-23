@@ -2,19 +2,17 @@ package main
 
 import (
 	"bufio"
-	"errors"
 	"flag"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"strconv"
 	"sync"
 )
 
-var red = "\\033[0;31m"
-
 // Channel of simultaneous tasks
-var simul = make(chan string, 10)
+var simul chan string
 var task_queue = make(chan string)
 var wg sync.WaitGroup
 
@@ -38,19 +36,25 @@ var dict string
 
 func main() {
 	// FLAGS
-	urlFlag := flag.String("u", "foo", "the url to test")
-	dictFlag := flag.String("d", "foo", "the dictionary to use")
+	urlFlag := flag.String("u", "localhost", "The url to test.")
+	dictFlag := flag.String("d", "/tmp/dict.txt", "The dictionary to use.")
+	//	delayFlag := flag.Int("delay", 0, "Set delay for requests.")
+	threadsFlag := flag.Int("threads", 1, "Max number of concurrent HTTP requests.")
 	flag.Parse()
+
+	// Handle the flag data
+	simul = make(chan string, *threadsFlag)
 	var err error
 	targetUrl, err = formatUrl(*urlFlag)
 	if err != nil {
 		log.Println("[E] Error" + err.Error())
 	}
 	dict = *dictFlag
+	// /Handle
 	// /FLAGS
 
 	// BANNER
-	fmt.Println("[/!\\] Starting bruteforcing with dict: \n\t" + dict + "\n   On site: " + targetUrl + "\n")
+	fmt.Println("[/!\\] Starting bruteforcing with dict: \n\t" + dict + "\n   On site: " + targetUrl + "\n Threads: " + strconv.Itoa(*threadsFlag))
 	// /BANNER
 
 	// Run !
@@ -104,54 +108,35 @@ func consume(task_queue chan string, simul chan string) {
 func scan(targetUrl string, path string, simul chan string) {
 	wg.Add(1)
 	response, content, err := httpRequest(targetUrl, path, false)
-	var errRedirect = errors.New("no_redirect")
-	if err != nil && err != errRedirect {
-		log.Println("[Request error] %s", err)
-		os.Exit(1)
+	if err != nil {
+		urlerr, ok := err.(*url.Error)
+		if !ok {
+			panic("[/!\\] no *url.Error.")
+		}
+		if urlerr.Err != errNoRedirect {
+			log.Printf("[Request error] %s", err)
+			os.Exit(1)
+		}
 	}
 	switch {
 	case response.StatusCode == 404:
-		fmt.Printf("\r                                ")
-		fmt.Printf("\r %s", path)
+		print404(path)
 	case response.StatusCode == 200:
 		if isListable(content) {
-			fmt.Println("\r\033[32m\033[1m[!]\033[0m Path: " + path + " is listable.")
+			printListable(path)
 			// Add directory to the found list
 			found_dir = append(found_dir, path+" (LISTABLE)")
 		} else {
-
-			fmt.Printf("\r                                ")
-			fmt.Println("\r\033[32m\033[1m[!]\033[0m 200 on: " + path + " - Size: " + strconv.Itoa(len(content)))
+			print200(path, strconv.Itoa(len(content)))
 			found_files = append(found_files, path+" - Size: "+strconv.Itoa(len(content)))
 		}
 	case response.StatusCode >= 300 && response.StatusCode <= 399:
-		// TODO
-		// Fix print race-condition problems
-		fmt.Printf("\r                                ")
-		fmt.Println("\r\033[32m\033[1m[!]\033[0m Response.Statuscode == " + strconv.Itoa(response.StatusCode) + " on " + path + " - Size: " + strconv.Itoa(len(content)))
-		if isDirectory(response, path) {
-			fmt.Println("\r   [i] " + path + " is a directory.")
-			// Call to httpRequest with following redirects
-			response, content, _ := httpRequest(targetUrl, path, true)
-			if isListable(content) {
-				fmt.Println("\r    └[i] Directory: " + path + " is listable. It won't be added to queue.")
-				found_dir = append(found_dir, path+"(LISTABLE)")
-			} else {
-				fmt.Println("\r    └[i] Directory: " + path + " ended with a " + strconv.Itoa(response.StatusCode) + " It will be added to queue.")
-				feed(task_queue, path+"/")
-				found_dir = append(found_dir, path)
-			}
-		} else {
-			fmt.Println("\r    [i] " + path + " is NOT a directory.")
-			found_files = append(found_files, path+" - Size: "+strconv.Itoa(len(content)))
-		}
+		print30x(response, content, path, response.StatusCode)
 	case response.StatusCode == 403:
-		fmt.Printf("\r                                ")
-		fmt.Println("\r\033[33m\033[1m[!]\033[0m 403 on " + path + " - Size: " + strconv.Itoa(len(content)))
+		print403(path, len(content))
 		found_files = append(found_files, path+" - Size: "+strconv.Itoa(len(content)))
 	case response.StatusCode == 405:
-		fmt.Printf("\r                                ")
-		fmt.Println("\r\033[34m\033[1m[!]\033[0m 405 on " + path + " - Size: " + strconv.Itoa(len(content)))
+		print405(path, len(content))
 		found_files = append(found_files, path+" - Size: "+strconv.Itoa(len(content)))
 	}
 
