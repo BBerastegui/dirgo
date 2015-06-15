@@ -33,6 +33,7 @@ var pending_dir []string
 
 var targetUrl string
 var dict string
+var ignore403 bool
 
 func main() {
 	// FLAGS
@@ -40,6 +41,7 @@ func main() {
 	dictFlag := flag.String("d", "/tmp/dict.txt", "The dictionary to use.")
 	//	delayFlag := flag.Int("delay", 0, "Set delay for requests.")
 	threadsFlag := flag.Int("threads", 1, "Max number of concurrent HTTP requests.")
+	ignore403Flag := flag.Bool("ignore403", false, "Ignore 403 errors.")
 	flag.Parse()
 
 	// Handle the flag data
@@ -50,6 +52,7 @@ func main() {
 		log.Println("[E] Error" + err.Error())
 	}
 	dict = *dictFlag
+	ignore403 = *ignore403Flag
 	// /Handle
 	// /FLAGS
 
@@ -133,8 +136,10 @@ func scan(targetUrl string, path string, simul chan string) {
 	case response.StatusCode >= 300 && response.StatusCode <= 399:
 		print30x(response, content, path, response.StatusCode)
 	case response.StatusCode == 403:
-		print403(path, len(content))
-		found_files = append(found_files, path+" - Size: "+strconv.Itoa(len(content)))
+		if ignore403 == false {
+			print403(path, len(content))
+			found_files = append(found_files, path+" - Size: "+strconv.Itoa(len(content)))
+		}
 	case response.StatusCode == 405:
 		print405(path, len(content))
 		found_files = append(found_files, path+" - Size: "+strconv.Itoa(len(content)))
