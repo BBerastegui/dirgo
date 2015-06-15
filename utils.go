@@ -71,6 +71,7 @@ func httpRequest(targetUrl string, path string, followRedirect bool) (response *
 	// Perform HTTP request
 
 	req, err := http.NewRequest("GET", targetUrl+path, nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Windows x86) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36")
 	response, err = client.Do(req)
 	if err != nil {
 		return response, content, err
