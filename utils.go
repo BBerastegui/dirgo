@@ -4,10 +4,12 @@ import (
 	"crypto/tls"
 	"errors"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 )
 
 func isListable(content []byte) bool {
@@ -20,7 +22,7 @@ func isListable(content []byte) bool {
 }
 
 func isDirectory(response *http.Response, path string) bool {
-	rDir := regexp.MustCompile(".*" + path + "/")
+	rDir := regexp.MustCompile(".*" + regexp.QuoteMeta(path) + "/")
 	if len(rDir.FindString(string(response.Header["Location"][0]))) > 0 {
 		// TODO
 		// Fix location URL-encoded !!!
@@ -46,25 +48,33 @@ var errNoRedirect = errors.New("no_redirect")
 
 func httpRequest(targetUrl string, path string, followRedirect bool) (response *http.Response, content []byte, err error) {
 
-	// DISABLING SSL CHECKS
+	// SET PROXY
+	//fmt.Println("SET PROXY FORCED")
+	//proxyUrl, err := url.Parse("http://localhost:8081")
 
+	// DISABLING SSL CHECKS
 	tr := &http.Transport{
+		//Proxy:           http.ProxyURL(proxyUrl),
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
-	client := &http.Client{Transport: tr}
+	// Set timeout check
+	timeout := time.Duration(60 * time.Second)
+	// Create client with custom parameters
+	client := &http.Client{Transport: tr, Timeout: timeout}
 
-	//	client := &http.Client{}
+	// client := &http.Client{}
 	// If its requested not to follow redirects
 	if !followRedirect {
 		client = &http.Client{
 			Transport: tr,
+			Timeout:   timeout,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				//var err error
 				return errNoRedirect
 			},
 		}
 	} else {
-		client = &http.Client{Transport: tr}
+		client = &http.Client{Transport: tr, Timeout: timeout}
 	}
 	// ---
 
@@ -73,6 +83,9 @@ func httpRequest(targetUrl string, path string, followRedirect bool) (response *
 	req, err := http.NewRequest("GET", targetUrl+path, nil)
 	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Windows x86) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36")
 	response, err = client.Do(req)
+	if err, ok := err.(net.Error); ok && err.Timeout() {
+		return response, content, err
+	}
 	if err != nil {
 		return response, content, err
 	}
